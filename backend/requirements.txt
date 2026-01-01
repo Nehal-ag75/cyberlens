@@ -36,3 +36,5 @@ aiohttp>=3.8.0
 
 # --- Utilities ---
 tqdm>=4.65.0
+
+pandas>=1.5
