@@ -4,22 +4,23 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { AlertTriangle, CheckCircle, Upload, Database, Info } from "lucide-react";
 
+// Helper to get the API URL (uses env var in prod, localhost in dev)
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
 export default function FraudPredictPage() {
   const [singleMode, setSingleMode] = useState(true);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [modelInfo, setModelInfo] = useState<any>(null);
 
-  // Single contract form state matching backend ContractInput schema
+  // Single contract form state
   const [formData, setFormData] = useState({
-    name: "",
-    department: "",
-    estimated_price: "",
-    final_price: "",
-    bidders: "1",
-    award_month: "6",
-    is_sunday: false,
-    is_december: false,
+    contract_type: "",
+    amount: "",
+    date: "",
+    counterparty_name: "",
+    counterparty_country: "",
+    industry: "",
   });
 
   // Batch mode state
@@ -34,39 +35,19 @@ export default function FraudPredictPage() {
     setLoading(true);
     setResult(null);
     try {
-      // Validate required fields
-      if (!formData.name || !formData.estimated_price || !formData.final_price) {
-        alert("Please fill in all required fields");
-        setLoading(false);
-        return;
-      }
-
-      const payload = {
-        name: formData.name,
-        department: formData.department || undefined,
-        estimated_price: parseFloat(formData.estimated_price),
-        final_price: parseFloat(formData.final_price),
-        bidders: parseInt(formData.bidders),
-        award_month: parseInt(formData.award_month),
-        is_sunday: formData.is_sunday,
-        is_december: formData.is_december,
-      };
-
-      const res = await fetch("http://127.0.0.1:8000/api/fraud-predict", {
+      const res = await fetch(`${API_URL}/api/fraud-predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...formData,
+          amount: parseFloat(formData.amount),
+          duration_days: parseInt(formData.date), // Ensure backend handles this conversion
+        }),
       });
-
-      if (!res.ok) {
-        throw new Error(`API Error: ${res.status} ${res.statusText}`);
-      }
-
       const data = await res.json();
       setResult(data);
     } catch (err) {
       alert("Prediction failed: " + (err as Error).message);
-      console.error("Prediction error:", err);
     } finally {
       setLoading(false);
     }
@@ -83,7 +64,7 @@ export default function FraudPredictPage() {
       const fileContent = await batchFile.text();
       const contracts = JSON.parse(fileContent);
 
-      const res = await fetch("http://127.0.0.1:8000/api/fraud-predict/batch", {
+      const res = await fetch(`${API_URL}/api/fraud-predict/batch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contracts }),
@@ -99,7 +80,7 @@ export default function FraudPredictPage() {
 
   const fetchModelInfo = async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/fraud-predict/model-info");
+      const res = await fetch(`${API_URL}/api/fraud-predict/model-info`);
       const data = await res.json();
       setModelInfo(data);
     } catch (err) {
@@ -117,7 +98,7 @@ export default function FraudPredictPage() {
           className="text-center mb-10"
         >
           <h1 className="text-4xl font-bold text-gray-900 mb-3">
-            🚨 Fraud Detection & Prediction
+            ⚖️ Fraud Detection & Prediction
           </h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
             AI-powered contract analysis to detect fraudulent patterns using machine learning models
@@ -128,21 +109,19 @@ export default function FraudPredictPage() {
         <div className="flex justify-center gap-4 mb-8">
           <button
             onClick={() => setSingleMode(true)}
-            className={`px-6 py-2 rounded-lg font-medium transition ${
-              singleMode
+            className={`px-6 py-2 rounded-lg font-medium transition ${singleMode
                 ? "bg-cyan-600 text-white shadow-md"
                 : "bg-white text-gray-700 border border-gray-300"
-            }`}
+              }`}
           >
             Single Contract
           </button>
           <button
             onClick={() => setSingleMode(false)}
-            className={`px-6 py-2 rounded-lg font-medium transition ${
-              !singleMode
+            className={`px-6 py-2 rounded-lg font-medium transition ${!singleMode
                 ? "bg-cyan-600 text-white shadow-md"
                 : "bg-white text-gray-700 border border-gray-300"
-            }`}
+              }`}
           >
             Batch Upload
           </button>
@@ -165,109 +144,51 @@ export default function FraudPredictPage() {
               Enter Contract Details
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
-                <InputField
-                  label="Contract Name / Title *"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  placeholder="e.g., Construction of Highway Bypass Section A-12"
-                />
-              </div>
-              
               <InputField
-                label="Department"
-                name="department"
-                value={formData.department}
+                label="Contract Type"
+                name="contract_type"
+                value={formData.contract_type}
                 onChange={handleInputChange}
-                placeholder="e.g., Public Works Department"
+                placeholder="e.g., service_agreement"
               />
-
               <InputField
-                label="Estimated Price *"
-                name="estimated_price"
+                label="Amount"
+                name="amount"
                 type="number"
-                value={formData.estimated_price}
+                value={formData.amount}
                 onChange={handleInputChange}
-                placeholder="e.g., 5000000"
+                placeholder="e.g., 50000"
+              />
+              <InputField
+                label="Date (dd-mm-yyyy)"
+                name="date"
+                type="text"
+                value={formData.date}
+                onChange={handleInputChange}
+                placeholder="e.g., 01-01-2023"
+              />
+              <InputField
+                label="Counterparty Name"
+                name="counterparty_name"
+                value={formData.counterparty_name}
+                onChange={handleInputChange}
+                placeholder="e.g., ABC Corp"
+              />
+              <InputField
+                label="Counterparty Country"
+                name="counterparty_country"
+                value={formData.counterparty_country}
+                onChange={handleInputChange}
+                placeholder="e.g., USA"
               />
 
               <InputField
-                label="Final Price *"
-                name="final_price"
-                type="number"
-                value={formData.final_price}
+                label="Industry"
+                name="industry"
+                value={formData.industry}
                 onChange={handleInputChange}
-                placeholder="e.g., 5500000"
+                placeholder="e.g., technology"
               />
-
-              <InputField
-                label="Number of Bidders *"
-                name="bidders"
-                type="number"
-                value={formData.bidders}
-                onChange={handleInputChange}
-                placeholder="e.g., 3"
-              />
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Award Month *
-                </label>
-                <select
-                  name="award_month"
-                  value={formData.award_month}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                >
-                  {[
-                    { value: 1, label: "January" },
-                    { value: 2, label: "February" },
-                    { value: 3, label: "March" },
-                    { value: 4, label: "April" },
-                    { value: 5, label: "May" },
-                    { value: 6, label: "June" },
-                    { value: 7, label: "July" },
-                    { value: 8, label: "August" },
-                    { value: 9, label: "September" },
-                    { value: 10, label: "October" },
-                    { value: 11, label: "November" },
-                    { value: 12, label: "December" },
-                  ].map((month) => (
-                    <option key={month.value} value={month.value}>
-                      {month.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="is_sunday"
-                    checked={formData.is_sunday}
-                    onChange={(e) =>
-                      setFormData({ ...formData, is_sunday: e.target.checked })
-                    }
-                    className="w-4 h-4 text-cyan-600 border-gray-300 rounded focus:ring-cyan-500"
-                  />
-                  <span className="text-sm text-gray-700">Awarded on Sunday</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="is_december"
-                    checked={formData.is_december}
-                    onChange={(e) =>
-                      setFormData({ ...formData, is_december: e.target.checked })
-                    }
-                    className="w-4 h-4 text-cyan-600 border-gray-300 rounded focus:ring-cyan-500"
-                  />
-                  <span className="text-sm text-gray-700">Awarded in December</span>
-                </label>
-              </div>
             </div>
             <button
               onClick={predictSingle}
@@ -315,7 +236,7 @@ export default function FraudPredictPage() {
               disabled={loading || !batchFile}
               className="mt-6 w-full bg-cyan-600 hover:bg-cyan-700 text-white py-3 rounded-lg font-semibold disabled:opacity-50 transition"
             >
-              {loading ? "Processing..." : "🔍 Analyze Batch"}
+              {loading ? "Processing..." : "📊 Analyze Batch"}
             </button>
           </motion.div>
         )}
@@ -325,123 +246,50 @@ export default function FraudPredictPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl shadow-xl p-8 space-y-6"
+            className="bg-white rounded-2xl shadow-xl p-8"
           >
-            {/* Header with Risk Level */}
-            <div className="flex items-center justify-between border-b pb-4">
+            <div className="flex items-center gap-3 mb-6">
+              {result.prediction === "fraud" ? (
+                <AlertTriangle className="w-8 h-8 text-red-500" />
+              ) : (
+                <CheckCircle className="w-8 h-8 text-green-500" />
+              )}
+              <h2 className="text-2xl font-bold">
+                Prediction:{" "}
+                <span
+                  className={
+                    result.prediction === "fraud" ? "text-red-600" : "text-green-600"
+                  }
+                >
+                  {result.prediction.toUpperCase()}
+                </span>
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-1">
-                  {result.contract_name}
-                </h2>
-                <p className="text-sm text-gray-500">Fraud Risk Analysis</p>
+                <p className="text-sm text-gray-500 mb-1">Confidence</p>
+                <p className="text-2xl font-semibold">{(result.confidence * 100).toFixed(1)}%</p>
               </div>
-              <div className="text-right">
-                <div className="flex items-center gap-2 justify-end mb-1">
-                  <span className="text-3xl">{result.risk_color}</span>
-                  <span
-                    className={`text-2xl font-bold ${
-                      result.risk_level === "CRITICAL"
-                        ? "text-red-600"
-                        : result.risk_level === "HIGH"
-                        ? "text-orange-600"
-                        : result.risk_level === "MODERATE"
-                        ? "text-yellow-600"
-                        : "text-green-600"
-                    }`}
-                  >
-                    {result.risk_level}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600">{result.recommendation}</p>
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Risk Score</p>
+                <p className="text-2xl font-semibold text-red-600">
+                  {(result.fraud_probability * 100).toFixed(1)}%
+                </p>
               </div>
             </div>
-
-            {/* Predicted CRI Score */}
-            <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-lg p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-1">
-                    Corruption Risk Index (CRI)
-                  </p>
-                  <p className="text-4xl font-bold text-cyan-700">
-                    {(result.predicted_cri * 100).toFixed(2)}%
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="w-32 h-32 rounded-full border-8 border-cyan-600 flex items-center justify-center bg-white">
-                    <span className="text-3xl font-bold text-cyan-700">
-                      {Math.round(result.predicted_cri * 100)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Fraud Signals */}
             {result.fraud_signals && result.fraud_signals.length > 0 && (
-              <div>
-                <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-orange-500" />
-                  Detected Fraud Signals ({result.fraud_signals.length})
-                </h3>
-                <div className="space-y-3">
+              <div className="mt-6">
+                <h3 className="font-semibold text-lg mb-3">🚩 Fraud Signals Detected</h3>
+                <div className="space-y-2">
                   {result.fraud_signals.map((signal: any, idx: number) => (
                     <div
                       key={idx}
-                      className={`p-4 rounded-lg border-l-4 ${
-                        signal.severity === "high"
-                          ? "bg-red-50 border-red-500"
-                          : signal.severity === "medium"
-                          ? "bg-yellow-50 border-yellow-500"
-                          : "bg-gray-50 border-gray-400"
-                      }`}
+                      className="bg-red-50 border border-red-200 rounded-lg p-4"
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-semibold text-gray-900 mb-1">
-                            {signal.signal}
-                          </p>
-                          <p className="text-sm text-gray-700">{signal.description}</p>
-                        </div>
-                        <span
-                          className={`text-xs font-bold px-2 py-1 rounded ${
-                            signal.severity === "high"
-                              ? "bg-red-200 text-red-800"
-                              : signal.severity === "medium"
-                              ? "bg-yellow-200 text-yellow-800"
-                              : "bg-gray-200 text-gray-800"
-                          }`}
-                        >
-                          {signal.severity.toUpperCase()}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Feature Breakdown */}
-            {result.feature_breakdown && (
-              <div>
-                <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                  <Database className="w-5 h-5 text-cyan-600" />
-                  Feature Analysis
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {Object.entries(result.feature_breakdown).map(([key, value]) => (
-                    <div key={key} className="bg-gray-50 rounded-lg p-4">
-                      <p className="text-xs text-gray-600 mb-1 capitalize">
-                        {key.replace(/_/g, " ")}
-                      </p>
-                      <p className="text-lg font-bold text-gray-900">
-                        {typeof value === "boolean"
-                          ? value
-                            ? "Yes"
-                            : "No"
-                          : typeof value === "number"
-                          ? value.toFixed(3)
-                          : value}
+                      <p className="font-medium text-red-800">{signal.signal_type}</p>
+                      <p className="text-sm text-gray-700 mt-1">{signal.description}</p>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Severity: <span className="font-medium">{signal.severity}</span>
                       </p>
                     </div>
                   ))}
@@ -483,20 +331,18 @@ export default function FraudPredictPage() {
               {batchResults.results.map((item: any, idx: number) => (
                 <div
                   key={idx}
-                  className={`border rounded-lg p-4 ${
-                    item.prediction === "fraud"
+                  className={`border rounded-lg p-4 ${item.prediction === "fraud"
                       ? "bg-red-50 border-red-200"
                       : "bg-green-50 border-green-200"
-                  }`}
+                    }`}
                 >
                   <div className="flex justify-between items-center">
                     <span className="font-medium">Contract #{idx + 1}</span>
                     <span
-                      className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                        item.prediction === "fraud"
+                      className={`px-3 py-1 rounded-full text-sm font-semibold ${item.prediction === "fraud"
                           ? "bg-red-200 text-red-800"
                           : "bg-green-200 text-green-800"
-                      }`}
+                        }`}
                     >
                       {item.prediction.toUpperCase()}
                     </span>
@@ -580,11 +426,18 @@ function InputField({
   );
 }
 
-function InfoCard({ label, value }: { label: string; value: string }) {
+// FIXED: InfoCard now handles 'any' type safely
+function InfoCard({ label, value }: { label: string; value: any }) {
+  // Safe rendering logic to avoid "unknown" type errors
+  const displayValue =
+    typeof value === 'boolean'
+      ? (value ? "Yes" : "No")
+      : String(value);
+
   return (
     <div className="bg-gray-50 rounded-lg p-4">
       <p className="text-sm text-gray-600">{label}</p>
-      <p className="text-lg font-semibold text-gray-900 mt-1">{value}</p>
+      <p className="text-lg font-semibold text-gray-900 mt-1">{displayValue}</p>
     </div>
   );
 }
